@@ -95,7 +95,7 @@ public class TestRsaSignature extends TestRsaBase {
   }
 
   @Test(dataProvider = "output-encodings")
-  public void sign_ProvidedKey_ProvidedSignatureMethod(String outputEncoding) {
+  public void sign_ProvidedKey_ProvidedSignatureMethodAndCharset(String outputEncoding) {
     Map<String, String> properties = new HashMap<String, String>();
     properties.put("testname", "sign_ProvidedKey");
     properties.put("action", "sign");
@@ -103,6 +103,7 @@ public class TestRsaSignature extends TestRsaBase {
     properties.put("debug", "true");
     properties.put("encode-result", outputEncoding);
     properties.put("signature-algorithm", "SHA1withRSA");
+    properties.put("signature-charset", "UTF-16LE");
     msgCtxt.setVariable("message.content", "The quick brown fox jumped over the lazy dog.");
 
     RsaSignature callout = new RsaSignature(properties);

@@ -26,6 +26,11 @@ import com.apigee.flow.execution.IOIntensive;
 import com.apigee.flow.execution.spi.Execution;
 import com.apigee.flow.message.MessageContext;
 import com.google.apigee.encoding.Base16;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -35,9 +40,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.crypto.Cipher;
-import javax.crypto.spec.OAEPParameterSpec;
-import javax.crypto.spec.PSource;
 
 @IOIntensive
 public class RsaCrypto extends RsaBase implements Execution {
@@ -56,6 +58,7 @@ public class RsaCrypto extends RsaBase implements Execution {
       Pattern.compile("^(RSA)$", Pattern.CASE_INSENSITIVE);
   private static final Pattern modeNamePattern =
       Pattern.compile("^(None|ECB)$", Pattern.CASE_INSENSITIVE);
+  public static final Charset DEFAULT_SIGNATURE_CHARSET = StandardCharsets.UTF_8;
 
   public RsaCrypto(Map properties) {
     super(properties);
@@ -240,7 +243,7 @@ public class RsaCrypto extends RsaBase implements Execution {
     }
   }
 
-  protected byte[] getSourceBytes(CryptoAction action, MessageContext msgCtxt) throws Exception {
+  protected byte[] getSourceBytes(CryptoAction action, MessageContext msgCtxt, String signatureCharset) throws Exception {
     if (action == CryptoAction.ENCRYPT) {
       boolean wantGenerateKey = _getBooleanProperty(msgCtxt, "generate-key", false);
       if (wantGenerateKey) {
@@ -257,11 +260,11 @@ public class RsaCrypto extends RsaBase implements Execution {
 
     if (source1 instanceof String) {
       EncodingType decodingKind = _getEncodingTypeProperty(msgCtxt, "decode-source");
-      return decodeString((String) source1, decodingKind);
+      return decodeString((String) source1, decodingKind, signatureCharset);
     }
 
     // coerce and hope for the best
-    return (source1.toString()).getBytes(StandardCharsets.UTF_8);
+    return (source1.toString()).getBytes(Charset.forName(signatureCharset));
   }
 
   public ExecutionResult execute(MessageContext msgCtxt, ExecutionContext exeCtxt) {
@@ -275,7 +278,9 @@ public class RsaCrypto extends RsaBase implements Execution {
       CryptoAction action = getAction(msgCtxt); // encrypt or decrypt
       msgCtxt.setVariable(varName("action"), action.name().toLowerCase());
 
-      byte[] source = getSourceBytes(action, msgCtxt);
+      String signatureCharset = _getStringProp(msgCtxt, "signature-charset", DEFAULT_SIGNATURE_CHARSET.name());
+
+      byte[] source = getSourceBytes(action, msgCtxt, signatureCharset);
       byte[] result;
 
       if (action == CryptoAction.DECRYPT) {

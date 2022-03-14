@@ -22,6 +22,7 @@ import com.apigee.flow.execution.spi.Execution;
 import com.apigee.flow.message.MessageContext;
 import com.google.apigee.encoding.Base16;
 
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.MGF1ParameterSpec;
@@ -36,6 +37,7 @@ public class RsaSignature extends RsaBase implements Execution {
   protected static final String defaultPadding = "PKCS_V1.5";
   public static final String DEFAULT_SIGNATURE_ALGORITHM = "SHA256WithRSA";
   public static final String DEFAULT_SIGNATURE_PROVIDER = "BC";
+  public static final Charset DEFAULT_SIGNATURE_CHARSET = StandardCharsets.UTF_8;
 
   public RsaSignature(Map properties) {
     super(properties);
@@ -82,7 +84,7 @@ public class RsaSignature extends RsaBase implements Execution {
     return cryptoAction;
   }
 
-  protected byte[] getSourceBytes(SignAction action, MessageContext msgCtxt) throws Exception {
+  protected byte[] getSourceBytes(SignAction action, MessageContext msgCtxt, String signatureCharset) throws Exception {
     Object source1 = msgCtxt.getVariable(getSourceVar());
     if (source1 instanceof byte[]) {
       return (byte[]) source1;
@@ -90,14 +92,14 @@ public class RsaSignature extends RsaBase implements Execution {
 
     if (source1 instanceof String) {
       EncodingType decodingKind = _getEncodingTypeProperty(msgCtxt, "decode-source");
-      return decodeString((String) source1, decodingKind);
+      return decodeString((String) source1, decodingKind, signatureCharset);
     }
 
     // coerce and hope for the best
-    return (source1.toString()).getBytes(StandardCharsets.UTF_8);
+    return (source1.toString()).getBytes(Charset.forName(signatureCharset));
   }
 
-  protected byte[] getSignatureBytes(MessageContext msgCtxt) throws Exception {
+  protected byte[] getSignatureBytes(MessageContext msgCtxt, String signatureCharset) throws Exception {
     String signatureVar = _getStringProp(msgCtxt, "signature-source", "signature");
     Object sig = msgCtxt.getVariable(signatureVar);
     if (sig instanceof byte[]) {
@@ -106,11 +108,11 @@ public class RsaSignature extends RsaBase implements Execution {
 
     if (sig instanceof String) {
       EncodingType decodingKind = _getEncodingTypeProperty(msgCtxt, "decode-signature");
-      return decodeString((String) sig, decodingKind);
+      return decodeString((String) sig, decodingKind, signatureCharset);
     }
 
     // coerce and hope for the best
-    return (sig.toString()).getBytes(StandardCharsets.UTF_8);
+    return (sig.toString()).getBytes(Charset.forName(signatureCharset));
   }
 
   protected String getPadding(MessageContext msgCtxt) throws Exception {
@@ -241,12 +243,13 @@ public class RsaSignature extends RsaBase implements Execution {
       SignAction action = getAction(msgCtxt); // sign or verify
       msgCtxt.setVariable(varName("action"), action.name().toLowerCase());
 
-      byte[] source = getSourceBytes(action, msgCtxt);
-      String padding = getPadding(msgCtxt);
-      PSSHashes pssHashes = (padding.equals("PSS")) ? getPSSHashes(msgCtxt) : null;
-
+      String signatureCharset = _getStringProp(msgCtxt, "signature-charset", DEFAULT_SIGNATURE_CHARSET.name());
       String signatureAlgorithm = _getStringProp(msgCtxt, "signature-algorithm", DEFAULT_SIGNATURE_ALGORITHM);
       String signatureProvider = _getStringProp(msgCtxt, "signature-provider", DEFAULT_SIGNATURE_PROVIDER);
+
+      byte[] source = getSourceBytes(action, msgCtxt, signatureCharset);
+      String padding = getPadding(msgCtxt);
+      PSSHashes pssHashes = (padding.equals("PSS")) ? getPSSHashes(msgCtxt) : null;
 
       if (action == SignAction.SIGN) {
         boolean wantGenerateKey = _getBooleanProperty(msgCtxt, "generate-key", false);
@@ -266,7 +269,7 @@ public class RsaSignature extends RsaBase implements Execution {
       } else {
         msgCtxt.setVariable(varName("verified"), "false");
         PublicKey publicKey = getPublicKey(msgCtxt);
-        byte[] signature = getSignatureBytes(msgCtxt);
+        byte[] signature = getSignatureBytes(msgCtxt, signatureCharset);
         boolean verified = verify(publicKey, source, signature, pssHashes, signatureAlgorithm, signatureProvider);
         msgCtxt.setVariable(varName("verified"), Boolean.toString(verified));
         if (!verified) {

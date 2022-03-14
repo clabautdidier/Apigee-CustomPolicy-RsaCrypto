@@ -19,9 +19,10 @@ import com.apigee.flow.message.MessageContext;
 import com.google.apigee.encoding.Base16;
 import com.google.apigee.util.CalloutUtil;
 import com.google.apigee.util.KeyUtil;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -117,7 +118,7 @@ public abstract class RsaBase {
     return _getEncodingTypeProperty(msgCtxt, "encode-result");
   }
 
-  protected static byte[] decodeString(String s, EncodingType decodingKind) throws Exception {
+  protected static byte[] decodeString(String s, EncodingType decodingKind, String signatureCharset) throws Exception {
     if (decodingKind == EncodingType.BASE16) {
       return Base16.decode(s);
     }
@@ -127,7 +128,7 @@ public abstract class RsaBase {
     if (decodingKind == EncodingType.BASE64URL) {
       return Base64.getUrlDecoder().decode(s);
     }
-    return s.getBytes(StandardCharsets.UTF_8);
+    return s.getBytes(Charset.forName(signatureCharset));
   }
 
   protected PublicKey getPublicKey(MessageContext msgCtxt) throws Exception {
