@@ -20,14 +20,19 @@ import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 public class GeosecureSignature implements Execution {
 
-    public static final String PROPERTYNAME_PAYLOAD = "payload";
-    public static final String PROPERTYNAME_PRIVATEKEY = "private-key";
-    public static final String PROPERTYNAME_SIGNATURE = "signature";
+    public static final String PROPERTYNAME_PAYLOAD = "SF-Geosecure-Introspect.token.token";
+    public static final String PROPERTYNAME_PRIVATEKEY = "SF-Geosecure-Introspect.Priv-Key";
+    public static final String PROPERTYNAME_SIGNATURE = "output";
     private final Map properties;
 
     public GeosecureSignature(Map properties) {
@@ -36,20 +41,53 @@ public class GeosecureSignature implements Execution {
 
     @Override
     public ExecutionResult execute(MessageContext messageContext, ExecutionContext executionContext) {
-        String payload = messageContext.getVariable(PROPERTYNAME_PAYLOAD);
-        String privateKey = messageContext.getVariable(PROPERTYNAME_PRIVATEKEY);
+        messageContext.setVariable("status", "START");
+
+        String payload = getPropertyValue(messageContext, properties, PROPERTYNAME_PAYLOAD);
+        String privateKey = getPropertyValue(messageContext, properties, PROPERTYNAME_PRIVATEKEY);
+
+        messageContext.setVariable("status", "Reading properties");
+        messageContext.setVariable("status.payload", "PAYLOAD is " + payload);
+        messageContext.setVariable("status.privatekey", "PRIVATE KEY is " + privateKey);
+
+        messageContext.setVariable("status", "Generating signature");
         try {
             String signature = sign(payload, privateKey);
+            messageContext.setVariable("status", "Signature generated");
 
             messageContext.setVariable(PROPERTYNAME_SIGNATURE, signature);
 
-        } catch (InvalidAlgorithmParameterException | NoSuchPaddingException | InvalidKeySpecException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+            messageContext.setVariable("status", "ERROR: " + e.getMessage());
+            messageContext.setVariable("errorMessage", e.getMessage());
+            messageContext.setVariable("errorStacktrace", mapStacktraceToSingleString(e));
 
             return ExecutionResult.ABORT;
         }
 
         return ExecutionResult.SUCCESS;
+    }
+
+    private String mapStacktraceToSingleString(Exception e) {
+        return Arrays.asList(e.getStackTrace()).stream().map(this::mapStacktraceElementToString).collect(Collectors.joining("\\n"));
+    }
+
+    private String mapStacktraceElementToString(StackTraceElement stackTraceElement) {
+        return stackTraceElement.getClassName() + ":" + stackTraceElement.getMethodName() + " line " + stackTraceElement.getLineNumber();
+    }
+
+    private String getPropertyValue(MessageContext messageContext, Map properties, String propertyName) {
+        String propertyValue;
+        if (nonNull(properties) && nonNull(properties.get(propertyName))) {
+            propertyValue = (String) properties.get(propertyName);
+        } else {
+            propertyValue = messageContext.getVariable(propertyName);
+        }
+
+        if (isNull(propertyValue)) return "<NULL>";
+        if (propertyValue.isEmpty()) return "<EMPTY>";
+
+        return propertyValue;
     }
 
     byte[] stripPKCS8Headers(byte[] inbuffer) throws UnsupportedEncodingException {
@@ -194,6 +232,7 @@ public class GeosecureSignature implements Execution {
     }
 
     private String sign(String payload, String keyfile) throws InvalidAlgorithmParameterException, NoSuchPaddingException, InvalidKeySpecException, IOException, NoSuchAlgorithmException, InvalidKeyException {
+
         PrivateKey privKey = loadPrivateKey(keyfile.getBytes(), null);
         String signature = signBase64(privKey, payload);
 
