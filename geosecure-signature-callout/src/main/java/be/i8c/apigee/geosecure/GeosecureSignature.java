@@ -47,8 +47,8 @@ public class GeosecureSignature implements Execution {
         String privateKey = getPropertyValue(messageContext, properties, PROPERTYNAME_PRIVATEKEY);
 
         messageContext.setVariable("status", "Reading properties");
-        messageContext.setVariable("status.payload", "PAYLOAD is " + payload);
-        messageContext.setVariable("status.privatekey", "PRIVATE KEY is " + privateKey);
+//        messageContext.setVariable("status.payload", "PAYLOAD is " + payload);
+//        messageContext.setVariable("status.privatekey", "PRIVATE KEY is " + privateKey);
 
         messageContext.setVariable("status", "Generating signature");
         try {
@@ -58,7 +58,7 @@ public class GeosecureSignature implements Execution {
             messageContext.setVariable(PROPERTYNAME_SIGNATURE, signature);
 
         } catch (Exception e) {
-            messageContext.setVariable("status", "ERROR: " + e.getMessage());
+            messageContext.setVariable("status", "ERROR");
             messageContext.setVariable("errorMessage", e.getMessage());
             messageContext.setVariable("errorStacktrace", mapStacktraceToSingleString(e));
 
